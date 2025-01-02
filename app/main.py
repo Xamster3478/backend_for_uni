@@ -30,9 +30,7 @@ DATABASE_URL = f"postgres://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.gete
 async def get_db_connection():
     return await asyncpg.connect(DATABASE_URL)
 
-
-
-@app.post("/api/create-user")
+@app.post("/api/create-user/")
 async def create_user(user: User):
     conn = await get_db_connection()
     try:
@@ -47,7 +45,7 @@ async def create_user(user: User):
     finally:
         await conn.close()
 
-@app.post("/api/login")
+@app.post("/api/login/")
 async def login(user: User):
     conn = await get_db_connection()
     try:
@@ -75,7 +73,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-@app.get("/api/verify-token")
+@app.get("/api/verify-token/")
 async def verify_token_endpoint(token: str = Depends(oauth2_scheme)):
     try:
         payload = verify_token(token)
