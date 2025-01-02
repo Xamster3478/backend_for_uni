@@ -1,22 +1,22 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncpg
 import os
-from dotenv import load_dotenv
-import bcrypt  # Импортируем bcrypt для хеширования паролей
-
-load_dotenv()  # Загружаем переменные окружения из файла .env
+import bcrypt
+import jwt
+from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordBearer
 
 app = FastAPI()
 
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Разрешить все источники. Для безопасности лучше указать конкретные.
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Разрешить все методы (GET, POST и т.д.)
-    allow_headers=["*"],  # Разрешить все заголовки
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Модель для пользователя
@@ -30,14 +30,13 @@ DATABASE_URL = f"postgres://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.gete
 async def get_db_connection():
     return await asyncpg.connect(DATABASE_URL)
 
-# Эндпоинт для создания пользователя
-@app.post("/create-user/")
+
+
+@app.post("/api/create-user/")
 async def create_user(user: User):
     conn = await get_db_connection()
     try:
-        # Хеширование пароля
         hashed_password = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt())
-        
         user_id = await conn.fetchval(
             "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id",
             user.username, hashed_password.decode('utf-8')
@@ -48,8 +47,7 @@ async def create_user(user: User):
     finally:
         await conn.close()
 
-# Эндпоинт для логина
-@app.post("/login/")
+@app.post("/api/login/")
 async def login(user: User):
     conn = await get_db_connection()
     try:
@@ -58,8 +56,38 @@ async def login(user: User):
             user.username
         )
         if result and bcrypt.checkpw(user.password.encode('utf-8'), result['password'].encode('utf-8')):
-            return {"message": "Login successful", "user_id": result['id']}
+            token = create_access_token(data={"user_id": result['id']})
+            return {"access_token": token, "token_type": "bearer"}
         else:
             raise HTTPException(status_code=400, detail="Invalid credentials")
     finally:
         await conn.close()
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, os.environ.get("SECRET_KEY"), algorithm="HS256")
+    return encoded_jwt
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+@app.get("/api/verify-token/")
+async def verify_token_endpoint(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = verify_token(token)
+        return {"user_id": payload.get("user_id")}
+    except HTTPException as e:
+        raise e
+
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, os.environ.get("SECRET_KEY"), algorithms=["HS256"])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
