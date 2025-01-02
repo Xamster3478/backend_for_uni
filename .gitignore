@@ -1,4 +1,4 @@
-requirements.txt
+
 .env
 venv/pyvenv.cfg
 venv/Lib/site-packages/typing_extensions.py
