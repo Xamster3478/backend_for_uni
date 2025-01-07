@@ -24,6 +24,11 @@ class User(BaseModel):
     username: str
     password: str
 
+# Модель для задачи
+class Task(BaseModel):
+    description: str
+    completed: bool = False
+
 # Подключение к базе данных
 DATABASE_URL = f"postgres://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.getenv('HOST')}:{os.getenv('PORT')}/{os.getenv('DBNAME')}?sslmode=require"
 
@@ -89,3 +94,57 @@ def verify_token(token: str):
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+# Эндпоинт для создания задачи
+@app.post("/api/tasks/")
+async def create_task(task: Task, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        task_id = await conn.fetchval(
+            "INSERT INTO tasks (user_id, description, completed) VALUES ($1, $2, $3) RETURNING id",
+            user_id, task.description, task.completed
+        )
+        return {"message": "Task created successfully", "task_id": task_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+
+# Эндпоинт для получения всех задач пользователя
+@app.get("/api/tasks/")
+async def get_tasks(token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        tasks = await conn.fetch(
+            "SELECT id, description, completed FROM tasks WHERE user_id = $1",
+            user_id
+        )
+        return {"tasks": tasks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+
+# Эндпоинт для удаления задачи
+@app.delete("/api/tasks/{task_id}/")
+async def delete_task(task_id: int, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        result = await conn.execute(
+            "DELETE FROM tasks WHERE id = $1 AND user_id = $2",
+            task_id, user_id
+        )
+        if result == "DELETE 1":
+            return {"message": "Task deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Task not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
