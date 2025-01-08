@@ -29,6 +29,16 @@ class Task(BaseModel):
     description: str
     completed: bool = False
 
+
+class KanbanColumn(BaseModel): 
+    name: str
+
+class KanbanTask(BaseModel):
+    description: str
+
+
+
+
 # Подключение к базе данных
 DATABASE_URL = f"postgres://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.getenv('HOST')}:{os.getenv('PORT')}/{os.getenv('DBNAME')}?sslmode=require"
 
@@ -129,6 +139,19 @@ async def get_tasks(token: str = Depends(oauth2_scheme)):
     finally:
         await conn.close()
 
+@app.patch("/api/tasks/{task_id}/")
+async def update_task(task_id: int, task: Task, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        await conn.execute("UPDATE tasks SET description = $1, completed = $2 WHERE id = $3 AND user_id = $4", task.description, task.completed, task_id, user_id)
+        return {"message": "Task updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+
 # Эндпоинт для удаления задачи
 @app.delete("/api/tasks/{task_id}/")
 async def delete_task(task_id: int, token: str = Depends(oauth2_scheme)):
@@ -148,3 +171,50 @@ async def delete_task(task_id: int, token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         await conn.close()
+
+
+
+#Ендпонт для работы с kanban доской (колонки) создание и удаление и изменение 
+# @app.post("/api/kanban/")
+# async def create_kanban_column(column: KanbanColumn, token: str = Depends(oauth2_scheme)):
+#     payload = verify_token(token)
+#     user_id = payload.get("user_id")
+#     conn = await get_db_connection()
+#     try:
+#         column_id = await conn.fetchval(
+#             "INSERT INTO kanban_columns (user_id, name) VALUES ($1, $2) RETURNING id",
+#             user_id, column.name
+#         )
+#         return {"message": "Kanban column created successfully", "column_id": column_id}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+#     finally:
+#         await conn.close()
+
+# @app.delete("/api/kanban/{column_id}/")
+# async def delete_kanban_column(column_id: int, token: str = Depends(oauth2_scheme)):
+#     payload = verify_token(token)
+#     user_id = payload.get("user_id")
+#     conn = await get_db_connection()
+#     try:
+#         await conn.execute("DELETE FROM kanban_columns WHERE id = $1 AND user_id = $2", column_id, user_id)
+#         return {"message": "Kanban column deleted successfully"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+#     finally:
+#         await conn.close()
+
+
+
+# @app.post("/api/kanban/{column_id}/tasks/")
+# async def create_kanban_task(column_id: int, task: Task, token: str = Depends(oauth2_scheme)):
+#     payload = verify_token(token)
+#     user_id = payload.get("user_id")
+#     conn = await get_db_connection()
+#     try:
+#         await conn.execute("INSERT INTO kanban_tasks (column_id, user_id, description, completed) VALUES ($1, $2, $3, $4)", column_id, user_id, task.description, task.completed)
+#         return {"message": "Kanban task created successfully"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+#     finally:
+#         await conn.close()
