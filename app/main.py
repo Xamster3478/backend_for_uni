@@ -188,18 +188,14 @@ async def delete_task(task_id: int, token: str = Depends(oauth2_scheme)):
 async def create_kanban_column(column: KanbanColumn, token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
     user_id = payload.get("user_id")
-    print(f"User ID: {user_id}")  # Отладочный принт
-    print(f"Column Name: {column.name}")  # Отладочный принт
     conn = await get_db_connection()
     try:
         column_id = await conn.fetchval(
             "INSERT INTO kanban_columns (user_id, name) VALUES ($1, $2) RETURNING id",
             user_id, column.name
         )
-        print(f"Column ID: {column_id}")  # Отладочный принт
         return {"message": "Kanban column created successfully", "column_id": column_id}
     except Exception as e:
-        print(f"Error: {e}")  # Отладочный принт
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         await conn.close()
@@ -225,7 +221,7 @@ async def create_kanban_task(column_id: int, task: Task, token: str = Depends(oa
     user_id = payload.get("user_id")
     conn = await get_db_connection()
     try:
-        await conn.execute("INSERT INTO kanban_tasks (column_id, user_id, description) VALUES ($1, $2, $3)", column_id, user_id, task.description, task.completed)
+        await conn.execute("INSERT INTO kanban_tasks (column_id, user_id, description) VALUES ($1, $2, $3)", column_id, user_id, task.description)
         return {"message": "Kanban task created successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
