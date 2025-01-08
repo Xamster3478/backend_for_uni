@@ -145,10 +145,21 @@ async def update_task(task_id: int, task: Task, token: str = Depends(oauth2_sche
     user_id = payload.get("user_id")
     conn = await get_db_connection()
     try:
-        await conn.execute("UPDATE tasks SET description = $1, completed = $2 WHERE id = $3 AND user_id = $4", task.description, task.completed, task_id, user_id)
+        # Проверка существования задачи
+        existing_task = await conn.fetchrow("SELECT * FROM tasks WHERE id = $1 AND user_id = $2", task_id, user_id)
+        if not existing_task:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        # Обновление задачи
+        await conn.execute(
+            "UPDATE tasks SET description = $1, completed = $2 WHERE id = $3 AND user_id = $4",
+            task.description, task.completed, task_id, user_id
+        )
         return {"message": "Task updated successfully"}
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
     finally:
         await conn.close()
 
