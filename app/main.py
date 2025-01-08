@@ -145,15 +145,13 @@ async def update_task(task_id: int, task: Task, token: str = Depends(oauth2_sche
     user_id = payload.get("user_id")
     conn = await get_db_connection()
     try:
-        # Проверка существования задачи
         existing_task = await conn.fetchrow("SELECT * FROM tasks WHERE id = $1 AND user_id = $2", task_id, user_id)
         if not existing_task:
             raise HTTPException(status_code=404, detail="Task not found")
 
-        # Обновление задачи
         await conn.execute(
-            "UPDATE tasks SET description = $1, completed = $2 WHERE id = $3 AND user_id = $4",
-            task.description, task.completed, task_id, user_id
+            "UPDATE tasks SET completed = $1 WHERE id = $2 AND user_id = $3",
+            task.completed, task_id, user_id
         )
         return {"message": "Task updated successfully"}
     except HTTPException as e:
@@ -194,7 +192,7 @@ async def delete_task(task_id: int, token: str = Depends(oauth2_scheme)):
 #     try:
 #         column_id = await conn.fetchval(
 #             "INSERT INTO kanban_columns (user_id, name) VALUES ($1, $2) RETURNING id",
-#             user_id, column.name
+#             user_id, col  umn.name
 #         )
 #         return {"message": "Kanban column created successfully", "column_id": column_id}
 #     except Exception as e:
