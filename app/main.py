@@ -5,7 +5,7 @@ import asyncpg
 import os
 import bcrypt
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from fastapi.security import OAuth2PasswordBearer
 
 app = FastAPI()
@@ -29,14 +29,21 @@ class Task(BaseModel):
     description: str
     completed: bool = False
 
-
+# Модель для колонки Kanban
 class KanbanColumn(BaseModel): 
     name: str
 
+# Модель для задачи Kanban
 class KanbanTask(BaseModel):
     column_id: int
     description: str
 
+# Модель для активности здоровья
+class HealthActivity(BaseModel):
+    date: date
+    steps: int
+    calories: int
+    activity: str
 
 
 
@@ -46,6 +53,29 @@ DATABASE_URL = f"postgres://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.gete
 async def get_db_connection():
     return await asyncpg.connect(DATABASE_URL)
 
+# Функции для работы с токенами
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, os.environ.get("SECRET_KEY"), algorithm="HS256")
+    return encoded_jwt
+
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, os.environ.get("SECRET_KEY"), algorithms=["HS256"])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Endpoints для работы с пользователями
 @app.post("/api/create-user/")
 async def create_user(user: User):
     conn = await get_db_connection()
@@ -77,18 +107,6 @@ async def login(user: User):
     finally:
         await conn.close()
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, os.environ.get("SECRET_KEY"), algorithm="HS256")
-    return encoded_jwt
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
 @app.get("/api/verify-token/")
 async def verify_token_endpoint(token: str = Depends(oauth2_scheme)):
     try:
@@ -97,16 +115,7 @@ async def verify_token_endpoint(token: str = Depends(oauth2_scheme)):
     except HTTPException as e:
         raise e
 
-def verify_token(token: str):
-    try:
-        payload = jwt.decode(token, os.environ.get("SECRET_KEY"), algorithms=["HS256"])
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-# Эндпоинт для создания задачи
+# Endpoints для работы с задачами
 @app.post("/api/tasks/")
 async def create_task(task: Task, token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
@@ -123,7 +132,6 @@ async def create_task(task: Task, token: str = Depends(oauth2_scheme)):
     finally:
         await conn.close()
 
-# Эндпоинт для получения всех задач пользователя
 @app.get("/api/tasks/")
 async def get_tasks(token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
@@ -162,7 +170,6 @@ async def update_task(task_id: int, task: Task, token: str = Depends(oauth2_sche
     finally:
         await conn.close()
 
-# Эндпоинт для удаления задачи
 @app.delete("/api/tasks/{task_id}/")
 async def delete_task(task_id: int, token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
@@ -182,9 +189,7 @@ async def delete_task(task_id: int, token: str = Depends(oauth2_scheme)):
     finally:
         await conn.close()
 
-
-
-# Ендпонт для работы с kanban доской (колонки) создание и удаление и изменение 
+# Endpoints для работы с kanban доской (колонки)
 @app.post("/api/kanban/")
 async def create_kanban_column(column: KanbanColumn, token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
@@ -213,8 +218,6 @@ async def delete_kanban_column(column_id: int, token: str = Depends(oauth2_schem
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         await conn.close()
-
-
 
 @app.post("/api/kanban/{column_id}/tasks/")
 async def create_kanban_task(column_id: int, task: Task, token: str = Depends(oauth2_scheme)):
@@ -280,7 +283,6 @@ async def get_kanban_tasks(column_id: int, token: str = Depends(oauth2_scheme)):
     finally:
         await conn.close()
 
-
 @app.patch("/api/kanban/{column_id}/tasks/{task_id}/")
 async def update_kanban_task(column_id: int, task_id: int, task: Task, token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
@@ -312,4 +314,45 @@ async def delete_kanban_task(column_id: int, task_id: int, token: str = Depends(
     finally:
         await conn.close()
 
+# Endpoints для работы с здоровьем
+@app.get("/api/health/activity/")
+async def get_health_activity(token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        activity = await conn.fetch("SELECT * FROM health_activity WHERE user_id = $1", user_id)
+        return {"activity": activity}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
 
+@app.post("/api/health/activity/")
+async def create_health_activity(activity: HealthActivity, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        activity_id = await conn.fetchval(
+            "INSERT INTO health_activity (user_id, date, steps, calories, activity) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            user_id, activity.date, activity.steps, activity.calories, activity.activity
+        )
+        return {"message": "Health activity created successfully", "activity_id": activity_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+
+@app.delete("/api/health/activity/{activity_id}/")
+async def delete_health_activity(activity_id: int, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        await conn.execute("DELETE FROM health_activity WHERE id = $1 AND user_id = $2", activity_id, user_id)
+        return {"message": "Health activity deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
