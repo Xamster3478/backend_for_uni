@@ -275,3 +275,18 @@ async def get_kanban_tasks(column_id: int, token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         await conn.close()
+
+
+@app.patch("/api/kanban/{column_id}/tasks/{task_id}/")
+async def update_kanban_task(column_id: int, task_id: int, task: Task, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        await conn.execute("UPDATE kanban_tasks SET description = $1 WHERE id = $2 AND user_id = $3", task.description, task_id, user_id)
+        return {"message": "Kanban task updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+
