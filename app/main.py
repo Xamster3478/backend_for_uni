@@ -8,6 +8,7 @@ import jwt
 from datetime import datetime, timedelta, date
 from fastapi.security import OAuth2PasswordBearer
 
+
 app = FastAPI()
 
 # Настройка CORS
@@ -44,6 +45,11 @@ class HealthActivity(BaseModel):
     steps: int
     calories: int
     activity: str
+
+# Модель для глюкозы
+class HealthGlucose(BaseModel):
+    date: datetime
+    glucose: float
 
 
 
@@ -356,3 +362,42 @@ async def delete_health_activity(activity_id: int, token: str = Depends(oauth2_s
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         await conn.close()
+
+
+@app.get("/api/health/glucose/")
+async def get_health_glucose(token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        glucose = await conn.fetch("SELECT * FROM health_glucose WHERE user_id = $1", user_id)
+        return {"glucose": glucose}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+@app.post("/api/health/glucose/")
+async def create_health_glucose(glucose: HealthGlucose, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        glucose_id = await conn.fetchval("INSERT INTO health_glucose (user_id, date, glucose) VALUES ($1, $2, $3) RETURNING id", user_id, glucose.date, glucose.glucose)
+        return {"message": "Health glucose created successfully", "glucose_id": glucose_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+
+@app.delete("/api/health/glucose/{glucose_id}/")
+async def delete_health_glucose(glucose_id: int, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        await conn.execute("DELETE FROM health_glucose WHERE id = $1 AND user_id = $2", glucose_id, user_id)
+        return {"message": "Health glucose deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()  
