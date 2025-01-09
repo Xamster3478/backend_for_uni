@@ -287,9 +287,11 @@ async def update_kanban_task(column_id: int, task_id: int, task: Task, token: st
     user_id = payload.get("user_id")
     conn = await get_db_connection()
     try:
+        new_column_id = task.column_id if hasattr(task, 'column_id') else column_id
+        
         await conn.execute(
             "UPDATE kanban_tasks SET column_id = $1, description = $2 WHERE id = $3 AND user_id = $4",
-            column_id, task.description, task_id, user_id
+            new_column_id, task.description, task_id, user_id
         )
         return {"message": "Kanban task updated successfully"}
     except Exception as e:
