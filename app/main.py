@@ -35,6 +35,7 @@ class KanbanColumn(BaseModel):
     name: str
 
 class KanbanTask(BaseModel):
+    column_id: int
     description: str
 
 
