@@ -27,6 +27,7 @@ class User(BaseModel):
 # Модель для задачи
 class Task(BaseModel):
     description: str
+    column_id: int
     completed: bool = False
 
 
@@ -221,8 +222,11 @@ async def create_kanban_task(column_id: int, task: Task, token: str = Depends(oa
     user_id = payload.get("user_id")
     conn = await get_db_connection()
     try:
-        await conn.execute("INSERT INTO kanban_tasks (column_id, user_id, description) VALUES ($1, $2, $3)", column_id, user_id, task.description)
-        return {"message": "Kanban task created successfully"}
+        task_id = await conn.fetchval(
+            "INSERT INTO kanban_tasks (column_id, user_id, description) VALUES ($1, $2, $3) RETURNING id",
+            column_id, user_id, task.description
+        )
+        return {"message": "Kanban task created successfully", "task_id": task_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -283,7 +287,10 @@ async def update_kanban_task(column_id: int, task_id: int, task: Task, token: st
     user_id = payload.get("user_id")
     conn = await get_db_connection()
     try:
-        await conn.execute("UPDATE kanban_tasks SET description = $1 WHERE id = $2 AND user_id = $3", task.description, task_id, user_id)
+        await conn.execute(
+            "UPDATE kanban_tasks SET column_id = $1, description = $2 WHERE id = $3 AND user_id = $4",
+            column_id, task.description, task_id, user_id
+        )
         return {"message": "Kanban task updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
