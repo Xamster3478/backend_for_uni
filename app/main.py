@@ -290,3 +290,17 @@ async def update_kanban_task(column_id: int, task_id: int, task: Task, token: st
     finally:
         await conn.close()
 
+@app.delete("/api/kanban/{column_id}/tasks/{task_id}/")
+async def delete_kanban_task(column_id: int, task_id: int, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        await conn.execute("DELETE FROM kanban_tasks WHERE id = $1 AND user_id = $2", task_id, user_id)
+        return {"message": "Kanban task deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+
+
