@@ -27,7 +27,6 @@ class User(BaseModel):
 # Модель для задачи
 class Task(BaseModel):
     description: str
-    column_id: int
     completed: bool = False
 
 
