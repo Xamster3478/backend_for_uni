@@ -4,3 +4,4 @@ asyncpg
 pyjwt
 python-dotenv
 bcrypt 
+supabase
