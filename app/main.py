@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncpg
@@ -7,6 +7,8 @@ import bcrypt
 import jwt
 from datetime import datetime, timedelta, date
 from fastapi.security import OAuth2PasswordBearer
+from supabase import create_client, Client
+
 
 
 app = FastAPI()
@@ -448,3 +450,58 @@ async def get_health_food(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         await conn.close()
+
+
+
+# Endpoints для работы с Supabase
+
+url: str = "https://ewtgjqcullvclwybsqco.supabase.co"
+key: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dGdqcWN1bGx2Y2x3eWJzcWNvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNTc2NzIzNiwiZXhwIjoyMDUxMzQzMjM2fQ.NAbC1UQr-Ff_PEyLEhtR56EEQvah7jLbV0nChOTKL1o"
+supabase: Client = create_client(url, key)
+
+@app.post("/api/supabase/get-bucket/{user_id}")
+async def post_bucket(user_id: int, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    auth_user_id = payload.get("user_id")
+    try:
+        response = supabase.storage.list_buckets()
+        bucket = list(map(lambda x: x.id, response))
+        if auth_user_id in bucket:
+            return {"bucket": "bucket found"}
+        else:
+            response = supabase.storage.create_bucket(auth_user_id)
+            return {"bucket": "bucket created"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/supabase/upload-file/{user_id}")
+async def upload_file(user_id: int, file: UploadFile, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    auth_user_id = payload.get("user_id")
+    try:
+        response = supabase.storage.from_(auth_user_id).upload(file.filename, file.file)
+        return {"file": "file uploaded"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/supabase/get-files/{user_id}")
+async def get_files(user_id: int, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    auth_user_id = payload.get("user_id")
+    try:
+        response = supabase.storage.from_(auth_user_id).list()
+        result = list(map(lambda x: x["name"] + " " + x["metadata"]["mimetype"], response))
+        return {"file": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/supabase/delete-file/{user_id}")
+async def delete_file(user_id: int, file_name: str, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    auth_user_id = payload.get("user_id")
+    try:
+        response = supabase.storage.from_(auth_user_id).remove([file_name])
+        return {"file": "file deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -1,5 +1,6 @@
 test.py
 .env
+venv
 venv/pyvenv.cfg
 venv/Lib/site-packages/typing_extensions.py
 venv/Lib/site-packages/__pycache__/typing_extensions.cpython-312.pyc
