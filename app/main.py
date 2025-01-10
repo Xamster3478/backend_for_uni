@@ -510,8 +510,10 @@ async def download_file(user_id: int, file_name: str, token: str = Depends(oauth
     payload = verify_token(token)
     auth_user_id = payload.get("user_id")
     try:
-        response = supabase.storage.from_(auth_user_id).download(file_name)
-        return {"file": response}
+        response = supabase.storage.from_(auth_user_id).create_signed_url(
+            file_name, 60 * 60 * 60 * 24 * 30
+        )
+        return {"file_url": response["signedURL"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
