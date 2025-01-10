@@ -470,7 +470,8 @@ async def post_bucket(user_id: int, token: str = Depends(oauth2_scheme)):
             return {"bucket": "bucket found"}
         else:
             response = supabase.storage.create_bucket(auth_user_id)
-            return {"bucket": "bucket created"}
+            return {"bucket": "bucket created",
+                    "bucket_id": response.id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -504,4 +505,14 @@ async def delete_file(user_id: int, file_name: str, token: str = Depends(oauth2_
         return {"file": "file deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/supabase/download-file/{user_id}")
+async def download_file(user_id: int, file_name: str, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    auth_user_id = payload.get("user_id")
+    try:
+        response = supabase.storage.from_(auth_user_id).download(file_name)
+        return {"file": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
