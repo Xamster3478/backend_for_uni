@@ -8,6 +8,7 @@ import jwt
 from datetime import datetime, timedelta, date
 from fastapi.security import OAuth2PasswordBearer
 from supabase import create_client, Client
+import uvicorn
 
 
 

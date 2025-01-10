@@ -5,3 +5,5 @@ pyjwt
 python-dotenv
 bcrypt 
 supabase
+uvicorn
+python-multipart
