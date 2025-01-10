@@ -52,6 +52,11 @@ class HealthGlucose(BaseModel):
     glucose: float
 
 
+# Модель для еды
+class HealthFood(BaseModel):
+  date: datetime
+  calories: int
+  water: float
 
 # Подключение к базе данных
 DATABASE_URL = f"postgres://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.getenv('HOST')}:{os.getenv('PORT')}/{os.getenv('DBNAME')}?sslmode=require"
@@ -401,3 +406,45 @@ async def delete_health_glucose(glucose_id: int, token: str = Depends(oauth2_sch
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         await conn.close()  
+
+
+
+
+@app.post("/api/health/food/")
+async def create_health_food(food: HealthFood, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        food_id = await conn.fetchval("INSERT INTO health_food (user_id, date, calories, water) VALUES ($1, $2, $3, $4) RETURNING id", user_id, food.date, food.calories, food.water)
+        return {"message": "Health food created successfully", "food_id": food_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+@app.delete("/api/health/food/{food_id}/")
+async def delete_health_food(food_id: int, token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        await conn.execute("DELETE FROM health_food WHERE id = $1 AND user_id = $2", food_id, user_id)
+        return {"message": "Health food deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
+
+
+@app.get("/api/health/food/")
+async def get_health_food(token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    user_id = payload.get("user_id")
+    conn = await get_db_connection()
+    try:
+        food = await conn.fetch("SELECT * FROM health_food WHERE user_id = $1", user_id)
+        return {"food": food}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await conn.close()
