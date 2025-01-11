@@ -494,7 +494,7 @@ async def get_files(user_id: int, token: str = Depends(oauth2_scheme)):
     auth_user_id = payload.get("user_id")
     try:
         response = supabase.storage.from_(auth_user_id).list()
-        result = list(map(lambda x: x["name"] + " " + x["metadata"]["mimetype"], response))
+        result = list(map(lambda x: x["name"] + "|" + x["metadata"]["mimetype"], response))
         return {"file": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
