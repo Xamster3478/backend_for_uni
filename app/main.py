@@ -481,7 +481,9 @@ async def upload_file(user_id: int, file: UploadFile, token: str = Depends(oauth
     payload = verify_token(token)
     auth_user_id = payload.get("user_id")
     try:
-        response = supabase.storage.from_(auth_user_id).upload(file.filename, file.file)
+        file_content = await file.read()
+        response = supabase.storage.from_(auth_user_id).upload(file.filename, file_content)
+
         return {"file": "file uploaded"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -502,6 +504,7 @@ async def delete_file(user_id: int, file_name: str, token: str = Depends(oauth2_
     payload = verify_token(token)
     auth_user_id = payload.get("user_id")
     try:
+        print(file_name)
         response = supabase.storage.from_(auth_user_id).remove([file_name])
         return {"file": "file deleted"}
     except Exception as e:
