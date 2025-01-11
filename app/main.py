@@ -472,7 +472,7 @@ async def post_bucket(user_id: int, token: str = Depends(oauth2_scheme)):
         else:
             response = supabase.storage.create_bucket(auth_user_id)
             return {"bucket": "bucket created",
-                    "bucket_id": response["id"]}
+                    "bucket_id": auth_user_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
