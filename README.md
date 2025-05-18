@@ -13,7 +13,7 @@
 
 ```bash
 git clone https://github.com/ваш_репозиторий.git
-cd ваш_репозиторий
+cd backend_for_uni
 ```
 
 ### Установка зависимостей
